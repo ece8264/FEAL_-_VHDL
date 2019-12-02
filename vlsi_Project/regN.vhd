@@ -1,0 +1,31 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+
+
+entity regN is
+port(data_in :in integer range 0 to 255;
+     clk,reset,w_en:in std_logic;
+     data_out:out integer range 0 to 255);
+end regN;
+
+
+architecture behavioral of regN is 
+begin
+
+------PROCESS------
+reg: process(reset,clk)
+ variable data:integer range 0 to 255;
+   begin
+data:=data_in;
+  if(reset='1') then
+     data:= 0;    --edo isos xriazetai allagi--
+  elsif (clk'event and clk='1') then
+     if(w_en='1') then
+     data_out<=data; 
+  end if;  
+   end if;
+end process reg;
+
+end behavioral; 		    	
+

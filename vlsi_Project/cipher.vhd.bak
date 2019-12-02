@@ -1,0 +1,104 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+
+
+entity cipher is
+port (clk,reset,EN_INPUT,EN_2,EN_3,EN_OUT,SEL_LOOP:in std_logic;
+      PLAINTEXT: in std_logic_vector(63 downto 0);
+      KEYSpre:in std_logic_vector(63 downto 0);
+      KEYSm:in std_logic_vector(15 downto 0);
+      KEYSpost:in std_logic_vector(63 downto 0);
+      CIPHERTEXT:out std_logic_vector(63 downto 0));
+
+end cipher;
+
+
+architecture behavioral of cipher is
+component  regStel is 
+  port(clk,reset,w_en:in std_logic;
+  data_in:in std_logic_vector( 63 downto 0);
+  data_out:out std_logic_vector(63 downto 0));
+end component;
+
+component  reg32Stel is
+port(data_in :in std_logic_vector(31 downto 0);
+     clk,reset,w_en:in std_logic;
+     data_out:out std_logic_vector(31 downto 0));
+end component;
+
+component S0_block is
+	port(   X1 : in std_logic_vector(7 downto 0);
+	  	X2 : in std_logic_vector(7 downto 0);
+		S0 : out std_logic_vector(7 downto 0));
+end component;
+
+component S1_block is
+	port(   X1 : in std_logic_vector(7 downto 0);
+	  	X2 : in std_logic_vector(7 downto 0);
+		S1 : out std_logic_vector(7 downto 0));
+end component;
+
+component  f_function is
+port(R:in std_logic_vector(31 downto 0);
+    KEY:in std_logic_vector(15 downto 0);
+    F:out std_logic_vector(31 downto 0));
+end component;
+
+component first_round is
+   port(
+        PLAIN:in std_logic_vector(63 downto 0);
+        KEYS:in std_logic_vector(63 downto 0);
+         L0,R0:out std_logic_vector(31 downto 0));
+ end component;
+
+component m_round is
+port(
+    Rpre,Lpre:in std_logic_vector(31 downto 0);
+    KEYS:in std_logic_vector(15 downto 0);
+    R,L:out std_logic_vector(31 downto 0));
+end component;
+
+component last_round is
+port(Lpre,Rpre : in std_logic_vector(31 downto 0);
+     KEYS:in std_logic_vector(63 downto 0);
+     CIPHER:out std_logic_vector(63 downto 0));
+end component;
+
+component muxStel is
+port (A,B:in std_logic_vector(31 downto 0);
+      S:in std_logic;
+      O:out std_logic_vector(31 downto 0));
+         
+end component;
+
+--signal b,help1,help1not :std_logic;
+signal plain1,prekeys,precipher,postkeys:std_logic_vector(63 downto 0);
+signal l0,r0,l1,r1,r2,l2,lf,rf,lmux,rmux: std_logic_vector(31 downto 0); 
+signal mkeys:std_logic_vector(15 downto 0);
+begin
+ prekeys<=KEYSpre;
+ mkeys<=KEYSm;
+ postkeys<=KEYSpost;
+
+entry: regStel port map(clk,reset,EN_INPUT,PLAINTEXT,plain1);
+
+round1: first_round port map(plain1,prekeys,l0,r0);
+muxl:muxStel port map(l0,l2,SEL_LOOP,lmux);
+muxr:muxStel port map(r0,r2,SEL_LOOP,rmux);
+regleft:reg32Stel port map(lmux,clk,reset,EN_2,l1);
+regright:reg32Stel port map(rmux,clk,reset,EN_2,r1);
+
+-----MIDDLE ROUND WITH MUXES AND REGISTERS------
+
+mid_round: m_round port map(r1,l1,mkeys,r2,l2);
+
+REGL3:reg32Stel port map(l2,clk,reset,EN_3,lf);
+REGR3:reg32Stel port map(r2,clk,reset,EN_3,rf);
+
+final:last_round port map (lf,rf,postkeys,precipher);
+f_reg:regStel port map(clk,reset,EN_OUT,precipher,CIPHERTEXT);
+
+
+end behavioral;

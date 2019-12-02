@@ -1,0 +1,37 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+
+entity reg32 is
+	port(   CLK,RST,EN: in std_logic;
+		DATA_IN: in std_logic_vector(31 downto 0);
+		DATA_OUT: out std_logic_vector(31 downto 0));
+	
+end reg32;
+
+architecture my_arch of reg32 is
+
+signal RegVal: std_logic_vector(31 downto 0);
+
+begin
+	
+process(RST,CLK)
+
+variable  RegVal: std_logic_vector(31 downto 0);
+
+begin 
+
+if(RST = '1') then 
+RegVal := (others => '0');
+DATA_OUT <= RegVal;
+elsif (CLK'event AND CLK = '1') then
+	if(EN = '1') then 
+	RegVal := DATA_IN;
+	DATA_OUT <= RegVal;
+	end if;
+end if;
+end process;
+
+end my_arch;
+

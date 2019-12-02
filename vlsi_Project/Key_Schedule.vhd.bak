@@ -1,0 +1,148 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity Key_Schedule is
+	port(
+	    	N: in integer range 0 to 255;   
+	    	CLK,RST,MUX6432_SELECT,W_EN,R_EN: in std_logic ;
+		KEY_IN: in std_logic_vector(127 downto 0);
+	  	COUNTER: in integer range 0 to 255;
+		COUNTER012: in integer range 0 to 2;----COUNTER012
+        	KEY_OUT0: out std_logic_vector(15 downto 0);
+		KEY_OUT64_1: out std_logic_vector(63 downto 0);
+		KEY_OUT64_2: out std_logic_vector(63 downto 0));
+	
+end Key_Schedule;
+
+
+ARCHITECTURE my_arch of Key_Schedule is 
+signal KEY_OUT0AUX: std_logic_vector(15 downto 0);
+signal Q1,Q2,Q3,KR1,KR2,KLL,KLR: std_logic_vector(31 downto 0);
+signal KR,KL,KEY_OUT64_1AUX,KEY_OUT64_2AUX: std_logic_vector(63 downto 0);
+signal REG128_DATA: std_logic_vector(127 downto 0);
+signal MUX96DATA,MUX64DATA1,MUX64DATA2,REG_XOR_OUT,MUX64DATA3,REG_B_OUT,REG_KEYS_OUT,FK,XOR_OUT,XOR_OUT2: std_logic_vector(31 downto 0);
+signal ZERO_SIGNAL: std_logic_vector(31 downto 0);
+
+
+-----SO S1 
+component S1_block is
+
+port(   	X1 : in std_logic_vector(7 downto 0);
+	  	X2 : in std_logic_vector(7 downto 0);
+		S1 : out std_logic_vector(7 downto 0));
+end component;
+
+component S0_block is
+
+port(   	X1 : in std_logic_vector(7 downto 0);
+	  	X2 : in std_logic_vector(7 downto 0);
+		S0 : out std_logic_vector(7 downto 0));
+end component;
+
+---FK
+component Fk_block is
+
+port(   	A : in std_logic_vector(31 downto 0);
+	  	B : in std_logic_vector(31 downto 0);
+		FK : out std_logic_vector(31 downto 0));
+end component;
+
+---REG32
+component reg32 is
+	port(   CLK,RST,EN: in std_logic;
+		DATA_IN: in std_logic_vector(31 downto 0);
+		DATA_OUT: out std_logic_vector(31 downto 0));
+	
+end component;
+---REG128
+component reg128 is
+	port(   CLK,RST,EN: in std_logic;
+		DATA_IN: in std_logic_vector(127 downto 0);
+		DATA_OUT: out std_logic_vector(127 downto 0));
+	
+end component;
+---MUX96
+component MUX96_32 is
+	port(   X0 : in std_logic_vector(31 downto 0);
+	  	X1 : in std_logic_vector(31 downto 0);
+		X2 : in std_logic_vector(31 downto 0);
+		MUX96_32_OUT : out std_logic_vector(31 downto 0);
+		SEL: in integer range 0 to 2);
+end component;
+---MUX64
+component MUX64_32 is
+	port(   X0 : in std_logic_vector(31 downto 0);
+	  	X1 : in std_logic_vector(31 downto 0);
+		MUX64_32_OUT : out std_logic_vector(31 downto 0);
+		SEL: in std_logic);
+end component;
+--XBOX
+component XBOX is
+	port(   Qr : in std_logic_vector(31 downto 0);
+	  	B : in std_logic_vector(31 downto 0);
+		D : in std_logic_vector(31 downto 0);
+		XOR_OUT : out std_logic_vector(31 downto 0);
+		XOR_OUT2: out std_logic_vector(31 downto 0));
+end component;
+---RAM
+  component RAM is
+   port(
+       N: in integer range 0 to 511;   
+       CLK : in std_logic;
+       RST: in std_logic;
+         W_EN : in std_logic;
+       R_EN : in std_logic;
+       KEY_INPUT32: in std_logic_vector(31 downto 0);
+       ADDRESS: in integer range 0 to 255;
+       KEYS_EXT1: out std_logic_vector(63 downto 0);
+       KEYS_EXT2: out std_logic_vector(63 downto 0);
+       KEY: out std_logic_vector(15 downto 0));
+       
+end component;
+
+
+
+begin
+ZERO_SIGNAL <= (others => '0');
+reg128OUT: reg128 PORT MAP(CLK,RST,W_EN,KEY_IN,REG128_DATA);
+
+
+KL <= REG128_DATA(127 downto 64);
+KR <= REG128_DATA(63 downto 0);
+
+KLL <= KL(63 downto 32);
+KLR <= KL(31 downto 0);
+KR1 <= KR(63 downto 32);
+KR2 <= KR(31 downto 0);
+
+Q1 <= KR1 XOR KR2 ;
+Q2 <= KR1;
+Q3 <= KR2;
+
+
+MUX96: MUX96_32 PORT MAP(Q1,Q2,Q3,MUX96DATA,COUNTER012);----FTIAXE TO COUNT GIA SELECT
+
+MUX64_1: MUX64_32 PORT MAP(KLR,REG_KEYS_OUT,MUX64DATA1,MUX6432_SELECT);----ston 1o gyro to aristera stous epomenoys N/2+2 ta dexia sima epilogis MUX6432 stin K_INIT
+MUX64_2: MUX64_32 PORT MAP(ZERO_SIGNAL,REG_B_OUT,MUX64DATA2,MUX6432_SELECT);
+MUX64_3: MUX64_32 PORT MAP(KLL,REG_XOR_OUT,MUX64DATA3,MUX6432_SELECT);
+
+XORBOX: XBOX PORT MAP(MUX96DATA,MUX64DATA1,MUX64DATA2,XOR_OUT,XOR_OUT2);
+
+FK_BOX: Fk_block PORT MAP(MUX64DATA3,XOR_OUT,FK);
+
+
+reg32XOR: reg32 PORT MAP(CLK,RST,W_EN,XOR_OUT2,REG_XOR_OUT);
+reg32B: reg32 PORT MAP(CLK,RST,W_EN,MUX64DATA3,REG_B_OUT);
+reg32KEYS: reg32 PORT MAP(CLK,RST,W_EN,FK,REG_KEYS_OUT);
+RAM_PM: RAM PORT MAP(N,CLK,RST,W_EN,R_EN,FK,COUNTER,KEY_OUT64_1AUX,KEY_OUT64_2AUX,KEY_OUT0AUX);
+
+KEY_OUT0 <= KEY_OUT0AUX;
+KEY_OUT64_1 <= KEY_OUT64_1AUX;
+KEY_OUT64_2 <= KEY_OUT64_2AUX;
+end my_arch;
+
+
+
+
+
